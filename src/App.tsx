@@ -24,15 +24,15 @@ interface Player {
   sessionId: string;
   name: string;
   avatar: string;
-  isReady: boolean;
-  board: number[];
+  ready: boolean;
+  boardNumbers: number[];
   lines: number;
 }
 
 interface Room {
   code: string;
   players: Player[];
-  gameState: "waiting" | "setting-up" | "playing" | "finished";
+  gameStarted: boolean;
   currentTurnIndex: number;
   calledNumbers: number[];
   winner: Player | null;
@@ -102,7 +102,7 @@ export default function App() {
   // Handle Leave Room
   const handleLeaveRoom = useCallback(() => {
     if (socket && room) {
-      socket.emit("leave-room", { roomCode: room.code, sessionId: sessionId.current });
+      socket.emit("leaveRoom", { roomCode: room.code, sessionId: sessionId.current });
     }
     localStorage.removeItem("bingo_room_code");
     setRoom(null);
@@ -127,7 +127,7 @@ export default function App() {
       const savedRoomCode = localStorage.getItem("bingo_room_code");
       if (savedPlayer && savedRoomCode) {
         const player = JSON.parse(savedPlayer);
-        newSocket.emit("join-room", { 
+        newSocket.emit("joinRoom", { 
           roomCode: savedRoomCode, 
           playerName: player.name, 
           avatar: player.avatar,
@@ -136,33 +136,30 @@ export default function App() {
       }
     });
 
-    newSocket.on("room-created", (room: Room) => {
+    newSocket.on("roomCreated", (room: Room) => {
       setRoom(room);
       localStorage.setItem("bingo_room_code", room.code);
     });
-    newSocket.on("room-joined", (room: Room) => {
+    newSocket.on("playersUpdate", (room: Room) => {
       setRoom(room);
       localStorage.setItem("bingo_room_code", room.code);
       
       // If game is already playing, restore board if possible
       const myPlayer = room.players.find(p => p.sessionId === sessionId.current);
-      if (myPlayer && myPlayer.board.length === 25) {
-        setMyBoard(myPlayer.board);
-        setIsReady(myPlayer.isReady);
+      if (myPlayer && myPlayer.boardNumbers.length === 25) {
+        setMyBoard(myPlayer.boardNumbers);
+        setIsReady(myPlayer.ready);
       }
     });
-    newSocket.on("player-joined", (room: Room) => setRoom(room));
-    newSocket.on("player-updated", (room: Room) => setRoom(room));
-    newSocket.on("player-ready", (room: Room) => setRoom(room));
-    newSocket.on("game-started", (room: Room) => {
+    newSocket.on("gameStart", (room: Room) => {
       setRoom(room);
       startCountdown();
     });
-    newSocket.on("number-picked", ({ room, pickedNumber }: { room: Room; pickedNumber: number }) => {
+    newSocket.on("numberCalled", ({ room, pickedNumber }: { room: Room; pickedNumber: number }) => {
       setRoom(room);
       if (soundEnabled) playSound("select");
     });
-    newSocket.on("game-over", (room: Room) => {
+    newSocket.on("winner", (room: Room) => {
       setRoom(room);
       if (soundEnabled) playSound("win");
     });
@@ -171,7 +168,6 @@ export default function App() {
       setIsReady(false);
       setMyBoard([]);
     });
-    newSocket.on("player-left", (room: Room) => setRoom(room));
     newSocket.on("error", (msg: string) => {
       setError(msg);
       setTimeout(() => setError(null), 3000);
@@ -220,7 +216,7 @@ export default function App() {
 
   const createRoom = () => {
     if (playerInfo && socket) {
-      socket.emit("create-room", { 
+      socket.emit("createRoom", { 
         playerName: playerInfo.name, 
         avatar: playerInfo.avatar,
         sessionId: sessionId.current
@@ -230,7 +226,7 @@ export default function App() {
 
   const joinRoom = (code: string) => {
     if (playerInfo && socket && code.length === 6) {
-      socket.emit("join-room", { 
+      socket.emit("joinRoom", { 
         roomCode: code, 
         playerName: playerInfo.name, 
         avatar: playerInfo.avatar,
@@ -242,15 +238,15 @@ export default function App() {
   const handleReady = () => {
     if (socket && room && myBoard.length === 25) {
       setIsReady(true);
-      socket.emit("ready", { roomCode: room.code, board: myBoard });
+      socket.emit("playerReady", { roomCode: room.code, boardNumbers: myBoard });
     }
   };
 
   const pickNumber = (num: number) => {
-    if (socket && room && room.gameState === "playing") {
+    if (socket && room && room.gameStarted) {
       const currentPlayer = room.players[room.currentTurnIndex];
       if (currentPlayer.id === socket.id && !room.calledNumbers.includes(num)) {
-        socket.emit("pick-number", { roomCode: room.code, number: num });
+        socket.emit("selectNumber", { roomCode: room.code, number: num });
       }
     }
   };
@@ -291,10 +287,10 @@ export default function App() {
 
   useEffect(() => {
     const lines = checkBingo();
-    if (lines >= 5 && room?.gameState === "playing" && socket) {
-      socket.emit("bingo", { roomCode: room.code });
+    if (lines >= 5 && room?.gameStarted && socket) {
+      socket.emit("bingoComplete", { roomCode: room.code });
     }
-  }, [checkBingo, room?.gameState, socket]);
+  }, [checkBingo, room?.gameStarted, socket]);
 
   // --- Render Helpers ---
 
@@ -329,7 +325,7 @@ export default function App() {
     );
   }
 
-  if (room.gameState === "waiting") {
+  if (!room.gameStarted && !room.winner) {
     return (
       <RoomScreen 
         room={room} 
