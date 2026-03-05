@@ -43,6 +43,7 @@ io.on("connection", (socket) => {
       }],
       calledNumbers: [],
       gameStarted: false,
+      gameState: "waiting",
       currentTurnIndex: 0,
       winner: null
     };
@@ -97,6 +98,7 @@ io.on("connection", (socket) => {
         const allReady = room.players.every(p => p.ready);
         if (allReady && room.players.length >= 1) {
           room.gameStarted = true;
+          room.gameState = "playing";
           room.currentTurnIndex = Math.floor(Math.random() * room.players.length);
           io.to(roomCode).emit("gameStart", room);
         } else {
@@ -126,6 +128,7 @@ io.on("connection", (socket) => {
       const player = room.players.find(p => p.id === socket.id);
       if (player) {
         room.gameStarted = false;
+        room.gameState = "finished";
         room.winner = player;
         io.to(roomCode).emit("winner", room);
       }

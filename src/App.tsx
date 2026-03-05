@@ -296,6 +296,13 @@ export default function App() {
 
   // --- Render Helpers ---
 
+  useEffect(() => {
+    if (room && myBoard.length === 0) {
+      const nums = Array.from({ length: 25 }, (_, i) => i + 1).sort(() => Math.random() - 0.5);
+      setMyBoard(nums);
+    }
+  }, [room?.code, myBoard.length]);
+
   if (!isOnline) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md">
@@ -323,16 +330,6 @@ export default function App() {
         onJoin={joinRoom} 
         onLogout={handleLogout}
         error={error}
-      />
-    );
-  }
-
-  if (!room.gameStarted && !room.winner) {
-    return (
-      <RoomScreen 
-        room={room} 
-        socketId={socket?.id || ""} 
-        onLeave={handleLeaveRoom} 
       />
     );
   }
