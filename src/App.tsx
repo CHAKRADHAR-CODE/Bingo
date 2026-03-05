@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { 
@@ -118,7 +119,8 @@ export default function App() {
 
   // Initialize Socket
   useEffect(() => {
-    const newSocket = io(window.location.origin);
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || window.location.origin;
+    const newSocket = io(backendUrl);
     setSocket(newSocket);
 
     newSocket.on("connect", () => {

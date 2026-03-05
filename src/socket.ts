@@ -1,6 +1,7 @@
+/// <reference types="vite/client" />
 import { io, Socket } from "socket.io-client";
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || window.location.origin;
+const SERVER_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
 
 export const socket: Socket = io(SERVER_URL);
 
