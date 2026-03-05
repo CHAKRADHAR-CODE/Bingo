@@ -1,7 +1,6 @@
 # 🎯 Multiplayer Bingo Web App
 
-🌐 **Live Website:**  
-https://bingo-era.vercel.app/
+🌐 **Live Website:**  https://bingo-era.vercel.app/
 
 A real-time **Multiplayer Bingo game** built with modern web technologies.  
 Players can create or join game rooms, arrange their Bingo boards, and compete live with others.  
