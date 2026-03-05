@@ -91,7 +91,7 @@ export default function App() {
   // Handle Logout
   const handleLogout = useCallback(() => {
     if (socket && room) {
-      socket.emit("leave-room", { roomCode: room.code, sessionId: sessionId.current });
+      socket.emit("leaveRoom", { roomCode: room.code, sessionId: sessionId.current });
     }
     localStorage.removeItem("bingo_player");
     localStorage.removeItem("bingo_room_code");
@@ -116,17 +116,18 @@ export default function App() {
     handleLogout();
   }, [socket, room, handleLogout]);
 
-  useEffect(() => {
-    localStorage.setItem("bingo_session", sessionId.current);
-  }, []);
-
   // Initialize Socket
   useEffect(() => {
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || window.location.origin;
-    const newSocket = io(backendUrl);
+    localStorage.setItem("bingo_session", sessionId.current);
+    
+    const newSocket = io({
+      transports: ["websocket", "polling"],
+      reconnection: true,
+    });
     setSocket(newSocket);
 
     newSocket.on("connect", () => {
+      console.log("Socket connected:", newSocket.id);
       // Try to restore session if we have player info and room code
       const savedPlayer = localStorage.getItem("bingo_player");
       const savedRoomCode = localStorage.getItem("bingo_room_code");
@@ -141,7 +142,16 @@ export default function App() {
       }
     });
 
+    newSocket.on("connect_error", (err) => {
+      console.error("Socket connection error:", err);
+      setError("Connection error. Please check your internet.");
+    });
+
     newSocket.on("roomCreated", (room: Room) => {
+      setRoom(room);
+      localStorage.setItem("bingo_room_code", room.code);
+    });
+    newSocket.on("roomJoined", (room: Room) => {
       setRoom(room);
       localStorage.setItem("bingo_room_code", room.code);
     });
