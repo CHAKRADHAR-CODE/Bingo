@@ -1,0 +1,21 @@
+{
+  "name": "Neon Bingo Multiplayer",
+  "short_name": "NeonBingo",
+  "description": "A premium real-time multiplayer Bingo game with a modern dark gaming UI.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#00ff88",
+  "icons": [
+    {
+      "src": "https://picsum.photos/seed/bingo/192/192",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://picsum.photos/seed/bingo/512/512",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
