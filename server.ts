@@ -26,7 +26,7 @@ async function startServer() {
   io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
 
-    socket.on("createRoom", ({ playerName, avatar, sessionId }) => {
+    socket.on("create-room", ({ playerName, avatar, sessionId }) => {
       const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
       const room = {
         code: roomCode,
@@ -35,11 +35,11 @@ async function startServer() {
           sessionId,
           name: playerName, 
           avatar, 
-          ready: false, 
-          boardNumbers: [], 
-          lines: 0
+          isReady: false, 
+          board: [], 
+          lines: 0, 
+          pickedNumbers: [] 
         }],
-        gameStarted: false,
         gameState: "waiting",
         currentTurnIndex: 0,
         calledNumbers: [],
@@ -47,11 +47,11 @@ async function startServer() {
       };
       rooms.set(roomCode, room);
       socket.join(roomCode);
-      socket.emit("roomCreated", room);
+      socket.emit("room-created", room);
       console.log(`Room created: ${roomCode} by ${playerName} (${sessionId})`);
     });
 
-    socket.on("joinRoom", ({ roomCode, playerName, avatar, sessionId }) => {
+    socket.on("join-room", ({ roomCode, playerName, avatar, sessionId }) => {
       const room = rooms.get(roomCode);
       if (room) {
         // Check if player is already in room (rejoining)
@@ -60,8 +60,8 @@ async function startServer() {
         if (existingPlayer) {
           existingPlayer.id = socket.id; // Update socket ID
           socket.join(roomCode);
-          socket.emit("roomJoined", room);
-          io.to(roomCode).emit("playersUpdate", room);
+          socket.emit("room-joined", room);
+          io.to(roomCode).emit("player-updated", room);
           console.log(`Player ${playerName} rejoined room ${roomCode}`);
           return;
         }
@@ -76,42 +76,42 @@ async function startServer() {
           sessionId,
           name: playerName, 
           avatar, 
-          ready: false, 
-          boardNumbers: [], 
-          lines: 0
+          isReady: false, 
+          board: [], 
+          lines: 0, 
+          pickedNumbers: [] 
         };
         room.players.push(newPlayer);
         socket.join(roomCode);
-        socket.emit("roomJoined", room);
-        io.to(roomCode).emit("playersUpdate", room);
+        socket.emit("room-joined", room);
+        io.to(roomCode).emit("player-joined", room);
         console.log(`Player ${playerName} joined room ${roomCode}`);
       } else {
         socket.emit("error", "No room found with this code.");
       }
     });
 
-    socket.on("playerReady", ({ roomCode, boardNumbers }) => {
+    socket.on("ready", ({ roomCode, board }) => {
       const room = rooms.get(roomCode);
       if (room) {
         const player = room.players.find((p: any) => p.id === socket.id);
         if (player) {
-          player.ready = true;
-          player.boardNumbers = boardNumbers;
+          player.isReady = true;
+          player.board = board;
           
-          const allReady = room.players.every((p: any) => p.ready);
-          if (allReady && room.players.length >= 2) { 
+          const allReady = room.players.every((p: any) => p.isReady);
+          if (allReady && room.players.length >= 1) { // Allow solo for testing if needed, but usually 2+
             room.gameState = "playing";
-            room.gameStarted = true;
             room.currentTurnIndex = Math.floor(Math.random() * room.players.length);
-            io.to(roomCode).emit("gameStart", room);
+            io.to(roomCode).emit("game-started", room);
           } else {
-            io.to(roomCode).emit("playersUpdate", room);
+            io.to(roomCode).emit("player-ready", room);
           }
         }
       }
     });
 
-    socket.on("selectNumber", ({ roomCode, number }) => {
+    socket.on("pick-number", ({ roomCode, number }) => {
       const room = rooms.get(roomCode);
       if (room && room.gameState === "playing") {
         const currentPlayer = room.players[room.currentTurnIndex];
@@ -122,61 +122,54 @@ async function startServer() {
             // Update turn
             room.currentTurnIndex = (room.currentTurnIndex + 1) % room.players.length;
             
-            io.to(roomCode).emit("numberCalled", { room, pickedNumber: number });
+            io.to(roomCode).emit("number-picked", { room, pickedNumber: number });
           }
         }
       }
     });
 
-    socket.on("bingoComplete", ({ roomCode }) => {
+    socket.on("bingo", ({ roomCode }) => {
       const room = rooms.get(roomCode);
       if (room && room.gameState === "playing") {
         const player = room.players.find((p: any) => p.id === socket.id);
         if (player) {
           room.gameState = "finished";
           room.winner = player;
-          io.to(roomCode).emit("winner", room);
+          io.to(roomCode).emit("game-over", room);
         }
       }
     });
 
-    socket.on("playAgain", ({ roomCode }) => {
+    socket.on("play-again", ({ roomCode }) => {
       const room = rooms.get(roomCode);
       if (room) {
         room.gameState = "waiting";
-        room.gameStarted = false;
         room.calledNumbers = [];
         room.winner = null;
         room.players.forEach((p: any) => {
-          p.ready = false;
-          p.boardNumbers = [];
+          p.isReady = false;
+          p.board = [];
           p.lines = 0;
         });
         io.to(roomCode).emit("reset-game", room);
       }
     });
 
-    socket.on("leaveRoom", ({ roomCode, sessionId }) => {
+    socket.on("leave-room", ({ roomCode, sessionId }) => {
       const room = rooms.get(roomCode);
       if (room) {
-        const leavingPlayer = room.players.find((p: any) => p.sessionId === sessionId);
         room.players = room.players.filter((p: any) => p.sessionId !== sessionId);
         socket.leave(roomCode);
-        
         if (room.players.length === 0) {
           rooms.delete(roomCode);
         } else {
-          if (leavingPlayer) {
-            io.to(roomCode).emit("playerLeftNotification", { playerName: leavingPlayer.name, room });
-          }
-          io.to(roomCode).emit("playersUpdate", room);
-
-          // If game was playing and only 1 player left, they win
+          // If game was playing and now only 1 player left, they win
           if (room.gameState === "playing" && room.players.length === 1) {
             room.gameState = "finished";
             room.winner = room.players[0];
-            room.winnerReason = "opponent_left";
-            io.to(roomCode).emit("winner", room);
+            io.to(roomCode).emit("game-over", room);
+          } else {
+            io.to(roomCode).emit("player-left", room);
           }
         }
         console.log(`Player with session ${sessionId} left room ${roomCode}`);
@@ -196,27 +189,23 @@ async function startServer() {
             const p = currentRoom.players.find((p: any) => p.sessionId === player.sessionId);
             // If the player's socket ID is still the same, they haven't reconnected
             if (p && p.id === socket.id) {
-              const leavingPlayerName = p.name;
               currentRoom.players = currentRoom.players.filter((p: any) => p.sessionId !== player.sessionId);
               
               if (currentRoom.players.length === 0) {
                 rooms.delete(roomCode);
               } else {
-                io.to(roomCode).emit("playerLeftNotification", { playerName: leavingPlayerName, room: currentRoom });
-                io.to(roomCode).emit("playersUpdate", currentRoom);
-                
-                if (currentRoom.gameState === "playing") {
-                  // If only 1 player left, they win
-                  if (currentRoom.players.length === 1) {
-                    currentRoom.gameState = "finished";
-                    currentRoom.winner = currentRoom.players[0];
-                    currentRoom.winnerReason = "opponent_left";
-                    io.to(roomCode).emit("winner", currentRoom);
-                  } else {
+                // If game was playing and now only 1 player left, they win
+                if (currentRoom.gameState === "playing" && currentRoom.players.length === 1) {
+                  currentRoom.gameState = "finished";
+                  currentRoom.winner = currentRoom.players[0];
+                  io.to(roomCode).emit("game-over", currentRoom);
+                } else {
+                  io.to(roomCode).emit("player-left", currentRoom);
+                  if (currentRoom.gameState === "playing") {
                     if (currentRoom.currentTurnIndex >= currentRoom.players.length) {
                       currentRoom.currentTurnIndex = 0;
                     }
-                    io.to(roomCode).emit("playersUpdate", currentRoom);
+                    io.to(roomCode).emit("turn-updated", currentRoom);
                   }
                 }
               }

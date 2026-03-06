@@ -135,77 +135,22 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("playAgain", ({ roomCode }) => {
-    const room = rooms[roomCode];
-    if (room) {
-      room.calledNumbers = [];
-      room.gameStarted = false;
-      room.gameState = "waiting";
-      room.winner = null;
-      room.currentTurnIndex = 0;
-      room.players.forEach(p => {
-        p.ready = false;
-        p.boardNumbers = [];
-        p.lines = 0;
-      });
-      io.to(roomCode).emit("reset-game", room);
-    }
-  });
-
   socket.on("leaveRoom", ({ roomCode, sessionId }) => {
     const room = rooms[roomCode];
     if (room) {
-      const leavingPlayer = room.players.find(p => p.sessionId === sessionId);
       room.players = room.players.filter(p => p.sessionId !== sessionId);
       socket.leave(roomCode);
-      
       if (room.players.length === 0) {
         delete rooms[roomCode];
       } else {
-        // Feature 2: Player Leaving the Game
-        if (room.gameState === "playing") {
-          if (room.players.length === 1) {
-            // Case A: Only 2 players in the room (now 1 left)
-            room.gameState = "finished";
-            room.gameStarted = false;
-            room.winner = room.players[0];
-            room.winnerReason = "opponent_left";
-            io.to(roomCode).emit("winner", room);
-          } else {
-            // Case B: More than 2 players in the room
-            io.to(roomCode).emit("playerLeftNotification", { 
-              playerName: leavingPlayer?.name || "A player",
-              room 
-            });
-            // Update turn index if necessary
-            if (room.currentTurnIndex >= room.players.length) {
-              room.currentTurnIndex = 0;
-            }
-            io.to(roomCode).emit("playersUpdate", room);
-          }
-        } else {
-          io.to(roomCode).emit("playersUpdate", room);
-        }
+        io.to(roomCode).emit("playersUpdate", room);
       }
     }
   });
 
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
-    // Find rooms where this player was
-    for (const roomCode in rooms) {
-      const room = rooms[roomCode];
-      const playerIndex = room.players.findIndex(p => p.id === socket.id);
-      if (playerIndex !== -1) {
-        const player = room.players[playerIndex];
-        // We don't automatically remove on disconnect to allow reconnection
-        // But we can notify if it's a permanent leave or if we want to handle it here.
-        // For now, let's rely on explicit leaveRoom for the "opponent left" logic 
-        // OR we can implement a timeout. 
-        // Given the prompt, I'll stick to leaveRoom for now or handle disconnect similarly if requested.
-        // Actually, many users expect disconnect to be handled.
-      }
-    }
+    // Optional: Add a timeout for reconnection if needed, but keeping it simple as per request
   });
 });
 

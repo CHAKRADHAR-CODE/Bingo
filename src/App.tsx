@@ -34,11 +34,9 @@ interface Room {
   code: string;
   players: Player[];
   gameStarted: boolean;
-  gameState: "waiting" | "playing" | "finished";
   currentTurnIndex: number;
   calledNumbers: number[];
   winner: Player | null;
-  winnerReason?: string;
 }
 
 const AVATARS = [
@@ -78,12 +76,13 @@ export default function App() {
   });
   const [room, setRoom] = useState<Room | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notification, setNotification] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [myBoard, setMyBoard] = useState<number[]>([]);
   const [isReady, setIsReady] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [notification, setNotification] = useState<string | null>(null);
+  const [lastLeaver, setLastLeaver] = useState<string | null>(null);
 
   const sessionId = useRef(localStorage.getItem("bingo_session") || Math.random().toString(36).substring(2, 15));
   const audioRef = useRef<any>({});
@@ -91,7 +90,7 @@ export default function App() {
   // Handle Logout
   const handleLogout = useCallback(() => {
     if (socket && room) {
-      socket.emit("leaveRoom", { roomCode: room.code, sessionId: sessionId.current });
+      socket.emit("leave-room", { roomCode: room.code, sessionId: sessionId.current });
     }
     localStorage.removeItem("bingo_player");
     localStorage.removeItem("bingo_room_code");
@@ -106,34 +105,31 @@ export default function App() {
   // Handle Leave Room
   const handleLeaveRoom = useCallback(() => {
     if (socket && room) {
-      socket.emit("leaveRoom", { roomCode: room.code, sessionId: sessionId.current });
+      socket.emit("leave-room", { roomCode: room.code, sessionId: sessionId.current });
     }
     localStorage.removeItem("bingo_room_code");
     setRoom(null);
     setIsReady(false);
     setMyBoard([]);
-    // The user requested that Leave Room also redirects to login
-    handleLogout();
-  }, [socket, room, handleLogout]);
+  }, [socket, room]);
+
+  useEffect(() => {
+    localStorage.setItem("bingo_session", sessionId.current);
+  }, []);
 
   // Initialize Socket
   useEffect(() => {
-    localStorage.setItem("bingo_session", sessionId.current);
-    
-    const newSocket = io({
-      transports: ["websocket", "polling"],
-      reconnection: true,
-    });
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || window.location.origin;
+    const newSocket = io(backendUrl);
     setSocket(newSocket);
 
     newSocket.on("connect", () => {
-      console.log("Socket connected:", newSocket.id);
       // Try to restore session if we have player info and room code
       const savedPlayer = localStorage.getItem("bingo_player");
       const savedRoomCode = localStorage.getItem("bingo_room_code");
       if (savedPlayer && savedRoomCode) {
         const player = JSON.parse(savedPlayer);
-        newSocket.emit("joinRoom", { 
+        newSocket.emit("join-room", { 
           roomCode: savedRoomCode, 
           playerName: player.name, 
           avatar: player.avatar,
@@ -142,20 +138,21 @@ export default function App() {
       }
     });
 
-    newSocket.on("connect_error", (err) => {
-      console.error("Socket connection error:", err);
-      setError("Connection error. Please check your internet.");
-    });
-
-    newSocket.on("roomCreated", (room: Room) => {
+    newSocket.on("room-created", (room: Room) => {
       setRoom(room);
       localStorage.setItem("bingo_room_code", room.code);
     });
-    newSocket.on("roomJoined", (room: Room) => {
+    newSocket.on("room-joined", (room: Room) => {
       setRoom(room);
       localStorage.setItem("bingo_room_code", room.code);
     });
-    newSocket.on("playersUpdate", (room: Room) => {
+    newSocket.on("player-joined", (room: Room) => {
+      setRoom(room);
+    });
+    newSocket.on("player-ready", (room: Room) => {
+      setRoom(room);
+    });
+    newSocket.on("player-updated", (room: Room) => {
       setRoom(room);
       localStorage.setItem("bingo_room_code", room.code);
       
@@ -166,22 +163,33 @@ export default function App() {
         setIsReady(myPlayer.ready);
       }
     });
-    newSocket.on("gameStart", (room: Room) => {
+    newSocket.on("game-started", (room: Room) => {
       setRoom(room);
       startCountdown();
     });
-    newSocket.on("numberCalled", ({ room, pickedNumber }: { room: Room; pickedNumber: number }) => {
+    newSocket.on("number-picked", ({ room, pickedNumber }: { room: Room; pickedNumber: number }) => {
       setRoom(room);
       if (soundEnabled) playSound("select");
     });
-    newSocket.on("winner", (room: Room) => {
+    newSocket.on("game-over", (room: Room) => {
       setRoom(room);
       if (soundEnabled) playSound("win");
     });
-    newSocket.on("playerLeftNotification", ({ playerName, room }: { playerName: string; room: Room }) => {
+    newSocket.on("turn-updated", (room: Room) => {
       setRoom(room);
-      setNotification(`Player ${playerName} has left the game.`);
-      setTimeout(() => setNotification(null), 3000);
+    });
+    newSocket.on("player-left", (room: Room) => {
+      // Find who left by comparing with current room players
+      setRoom((prevRoom) => {
+        if (prevRoom && prevRoom.players.length > room.players.length) {
+          const leaver = prevRoom.players.find(p => !room.players.find(rp => rp.sessionId === p.sessionId));
+          if (leaver) {
+            setNotification(`Player ${leaver.name} has left the game.`);
+            setTimeout(() => setNotification(null), 3000);
+          }
+        }
+        return room;
+      });
     });
     newSocket.on("reset-game", (room: Room) => {
       setRoom(room);
@@ -236,7 +244,7 @@ export default function App() {
 
   const createRoom = () => {
     if (playerInfo && socket) {
-      socket.emit("createRoom", { 
+      socket.emit("create-room", { 
         playerName: playerInfo.name, 
         avatar: playerInfo.avatar,
         sessionId: sessionId.current
@@ -246,7 +254,7 @@ export default function App() {
 
   const joinRoom = (code: string) => {
     if (playerInfo && socket && code.length === 6) {
-      socket.emit("joinRoom", { 
+      socket.emit("join-room", { 
         roomCode: code, 
         playerName: playerInfo.name, 
         avatar: playerInfo.avatar,
@@ -258,15 +266,15 @@ export default function App() {
   const handleReady = () => {
     if (socket && room && myBoard.length === 25) {
       setIsReady(true);
-      socket.emit("playerReady", { roomCode: room.code, boardNumbers: myBoard });
+      socket.emit("ready", { roomCode: room.code, board: myBoard });
     }
   };
 
   const pickNumber = (num: number) => {
-    if (socket && room && room.gameStarted) {
+    if (socket && room && room.gameState === "playing") {
       const currentPlayer = room.players[room.currentTurnIndex];
       if (currentPlayer.id === socket.id && !room.calledNumbers.includes(num)) {
-        socket.emit("selectNumber", { roomCode: room.code, number: num });
+        socket.emit("pick-number", { roomCode: room.code, number: num });
       }
     }
   };
@@ -307,10 +315,10 @@ export default function App() {
 
   useEffect(() => {
     const lines = checkBingo();
-    if (lines >= 5 && room?.gameStarted && socket) {
-      socket.emit("bingoComplete", { roomCode: room.code });
+    if (lines >= 5 && room?.gameState === "playing" && socket) {
+      socket.emit("bingo", { roomCode: room.code });
     }
-  }, [checkBingo, room?.gameStarted, socket]);
+  }, [checkBingo, room?.gameState, socket]);
 
   // --- Render Helpers ---
 
@@ -356,18 +364,18 @@ export default function App() {
     <GameScreen 
       room={room} 
       socketId={socket?.id || ""} 
+      sessionId={sessionId.current}
       myBoard={myBoard}
       setMyBoard={setMyBoard}
       isReady={isReady}
       onReady={handleReady}
       onPick={pickNumber}
       countdown={countdown}
+      onPlayAgain={() => socket?.emit("play-again", { roomCode: room.code })}
       onExit={handleLeaveRoom}
       soundEnabled={soundEnabled}
       onToggleSound={() => setSoundEnabled(!soundEnabled)}
-      onPlayAgain={() => socket?.emit("playAgain", { roomCode: room.code })}
       notification={notification}
-      sessionId={sessionId.current}
     />
   );
 }
@@ -413,7 +421,7 @@ function EntryScreen({ onConfirm }: { onConfirm: (info: { name: string; avatar: 
 
           <div className="space-y-4">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Choose Avatar</label>
-            <div className="grid grid-cols-4 gap-3 md:gap-4">
+            <div className="grid grid-cols-4 gap-4">
               {AVATARS.map((av) => (
                 <button
                   key={av}
@@ -478,23 +486,23 @@ function LobbyScreen({ playerInfo, onCreate, onJoin, onLogout, error }: any) {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <button onClick={onCreate} className="btn-accent w-full">
                 <Plus className="w-5 h-5" /> Create Room
               </button>
-              <div className="flex flex-row gap-2">
+              <div className="flex gap-2">
                 <input 
                   type="text" 
                   value={code}
                   onChange={(e) => setCode(e.target.value.toUpperCase())}
-                  placeholder="Code"
+                  placeholder="Room Code"
                   maxLength={6}
-                  className="w-24 sm:flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-3 sm:px-4 focus:outline-none focus:border-indigo-500 transition-all font-bold tracking-widest uppercase text-sm sm:text-base"
+                  className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-4 focus:outline-none focus:border-indigo-500 transition-all font-bold tracking-widest uppercase"
                 />
                 <button 
                   onClick={() => onJoin(code)}
                   disabled={code.length !== 6}
-                  className="btn-primary flex-1 sm:px-6"
+                  className="btn-primary px-6"
                 >
                   Join
                 </button>
@@ -644,6 +652,7 @@ function RoomScreen({ room, socketId, onLeave }: any) {
 function GameScreen({ 
   room, 
   socketId, 
+  sessionId,
   myBoard, 
   setMyBoard, 
   isReady, 
@@ -654,8 +663,7 @@ function GameScreen({
   onExit,
   soundEnabled,
   onToggleSound,
-  notification,
-  sessionId
+  notification
 }: any) {
   const currentPlayer = room.players[room.currentTurnIndex];
   const isMyTurn = currentPlayer?.id === socketId;
@@ -717,9 +725,9 @@ function GameScreen({
   return (
     <div className="min-h-screen p-4 flex flex-col max-w-5xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6 md:mb-12 w-full">
+      <div className="flex items-center justify-between mb-6 md:mb-12 w-full gap-2">
         <div className="flex items-center gap-2 md:gap-4">
-          <div className="bg-white border border-slate-200 py-1.5 md:py-2 px-3 md:px-4 rounded-xl text-xs md:sm font-bold text-indigo-600 shadow-sm">{room.code}</div>
+          <div className="bg-white border border-slate-200 py-2 px-3 md:px-4 rounded-xl text-xs md:sm font-bold text-indigo-600 shadow-sm">{room.code}</div>
           <button onClick={onToggleSound} className="p-2 md:p-2.5 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-indigo-600 transition-all shadow-sm">
             {soundEnabled ? <Volume2 className="w-4 h-4 md:w-5 md:h-5" /> : <VolumeX className="w-4 h-4 md:w-5 md:h-5" />}
           </button>
@@ -729,7 +737,7 @@ function GameScreen({
           {bingoLetters.map((letter, i) => (
             <div 
               key={i} 
-              className={`bingo-letter w-10 h-10 md:w-14 md:h-14 text-lg md:text-2xl ${i < linesCount ? "active" : "inactive"}`}
+              className={`bingo-letter ${i < linesCount ? "active" : "inactive"}`}
             >
               {letter}
             </div>
@@ -744,43 +752,42 @@ function GameScreen({
           >
             <LogOut className="w-4 h-4 md:w-5 md:h-5 group-hover:scale-110 transition-transform" />
           </button>
-          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-2 md:px-3 py-1.5 md:py-2 shadow-sm">
-            <div className="text-right hidden sm:block">
-              <p className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">Players</p>
-              <p className="text-sm md:text-lg font-black text-slate-800 leading-none">{room.players.length}</p>
-            </div>
-            <div className="sm:hidden text-xs font-black text-slate-800">{room.players.length}</div>
-            <Users className="w-4 h-4 md:w-5 md:h-5 text-slate-400" />
+          <div className="hidden sm:block text-right">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Players</p>
+            <p className="text-lg font-black text-slate-800 leading-none">{room.players.length}</p>
+          </div>
+          <div className="w-8 h-8 md:w-10 md:h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 shadow-sm">
+            <Users className="w-4 h-4 md:w-5 md:h-5" />
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-6 md:gap-10 w-full">
+      <div className="flex-1 flex flex-col items-center justify-center gap-10 w-full">
         {room.gameState === "playing" && (
           <div className="w-full max-w-md text-center">
             <motion.div 
               animate={isMyTurn ? { y: [0, -5, 0] } : {}}
               transition={{ repeat: Infinity, duration: 2 }}
-              className={`bg-white border-2 rounded-3xl mb-4 md:mb-6 py-3 md:py-4 px-4 md:px-6 shadow-xl transition-all ${isMyTurn ? "border-indigo-500" : "border-slate-100 opacity-60"}`}
+              className={`bg-white border-2 rounded-3xl mb-6 py-4 px-6 shadow-xl transition-all ${isMyTurn ? "border-indigo-500" : "border-slate-100 opacity-60"}`}
             >
-              <div className="flex items-center justify-center gap-3 md:gap-4">
+              <div className="flex items-center justify-center gap-4">
                 <div className="relative">
-                  <img src={currentPlayer.avatar} alt="" className={`w-10 h-10 md:w-12 md:h-12 rounded-full border-2 bg-white ${isMyTurn ? "border-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.3)]" : "border-slate-200"}`} referrerPolicy="no-referrer" />
-                  {isMyTurn && <div className="absolute -top-1 -right-1 w-2.5 h-2.5 md:w-3 md:h-3 bg-indigo-500 rounded-full border-2 border-white animate-pulse"></div>}
+                  <img src={currentPlayer.avatar} alt="" className={`w-12 h-12 rounded-full border-2 bg-white ${isMyTurn ? "border-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.3)]" : "border-slate-200"}`} referrerPolicy="no-referrer" />
+                  {isMyTurn && <div className="absolute -top-1 -right-1 w-3 h-3 bg-indigo-500 rounded-full border-2 border-white animate-pulse"></div>}
                 </div>
                 <div className="text-left">
-                  <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">
                     {isMyTurn ? "Your Turn" : "Their Turn"}
                   </p>
-                  <span className="font-bold text-slate-800 text-lg md:text-xl leading-none">
+                  <span className="font-bold text-slate-800 text-xl leading-none">
                     {isMyTurn ? "Pick a number" : currentPlayer.name}
                   </span>
                 </div>
               </div>
             </motion.div>
             
-            <div className="h-20 md:h-24 flex flex-col items-center justify-center bg-white/50 rounded-3xl border border-slate-100 mb-2 md:mb-4">
+            <div className="h-24 flex flex-col items-center justify-center bg-white/50 rounded-3xl border border-slate-100 mb-4">
               {room.calledNumbers.length > 0 ? (
                 <AnimatePresence mode="wait">
                   <motion.div 
@@ -789,25 +796,25 @@ function GameScreen({
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     className="text-center"
                   >
-                    <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Current Call</p>
-                    <div className="text-4xl md:text-5xl font-black text-indigo-600">{room.calledNumbers[room.calledNumbers.length - 1]}</div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Current Call</p>
+                    <div className="text-5xl font-black text-indigo-600">{room.calledNumbers[room.calledNumbers.length - 1]}</div>
                   </motion.div>
                 </AnimatePresence>
               ) : (
-                <p className="text-slate-400 font-bold italic text-sm md:text-base">Waiting for first pick...</p>
+                <p className="text-slate-400 font-bold italic">Waiting for first pick...</p>
               )}
             </div>
           </div>
         )}
 
         {/* Board */}
-        <div className="w-full max-w-md relative px-2 md:px-0">
+        <div className="w-full max-w-md relative">
           {room.gameState === "waiting" && !isReady && (
-            <p className="text-center text-[9px] md:text-[10px] font-bold text-slate-400 mb-3 md:mb-4 uppercase tracking-widest">
+            <p className="text-center text-[10px] font-bold text-slate-400 mb-4 uppercase tracking-widest">
               Click two cells to swap positions
             </p>
           )}
-          <div className="bingo-grid p-3 md:p-4 premium-card relative">
+          <div className="bingo-grid p-4 premium-card relative">
             {myBoard.length === 0 ? (
               Array.from({ length: 25 }).map((_, i) => (
                 <div key={i} className="bingo-cell empty" />
@@ -895,89 +902,99 @@ function GameScreen({
         )}
       </AnimatePresence>
 
-      {/* Notification Toast */}
-      <AnimatePresence>
-        {notification && (
-          <motion.div 
-            initial={{ opacity: 0, y: -50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -50 }}
-            className="fixed top-6 left-1/2 -translate-x-1/2 z-[110] bg-slate-900 text-white px-6 py-3 rounded-2xl shadow-2xl font-bold flex items-center gap-3 border border-white/10"
-          >
-            <div className="w-2 h-2 bg-indigo-400 rounded-full animate-pulse" />
-            {notification}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Winner Overlay */}
       <AnimatePresence>
         {room.gameState === "finished" && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-xl p-4"
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4"
           >
             <motion.div 
-              initial={{ y: 50, opacity: 0, scale: 0.9 }}
-              animate={{ y: 0, opacity: 1, scale: 1 }}
-              className="premium-card w-full max-w-md text-center relative overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.3)]"
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              className="bg-white rounded-[2.5rem] w-full max-w-md text-center relative overflow-hidden shadow-2xl p-8 border border-white/20"
             >
-              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500" />
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
               
-              <div className="w-24 h-24 bg-yellow-400/10 rounded-3xl flex items-center justify-center mx-auto mb-6 relative">
+              <motion.div 
+                initial={{ rotate: -10, scale: 0.5 }}
+                animate={{ rotate: 0, scale: 1 }}
+                transition={{ type: "spring", damping: 12 }}
+                className="w-24 h-24 bg-yellow-400/10 rounded-3xl flex items-center justify-center mx-auto mb-6 relative"
+              >
                 <Trophy className="w-12 h-12 text-yellow-500" />
                 <motion.div 
-                  animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
+                  animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
                   transition={{ repeat: Infinity, duration: 2 }}
                   className="absolute inset-0 bg-yellow-400/20 rounded-3xl blur-xl"
                 />
-              </div>
+              </motion.div>
               
               {room.winner?.sessionId === sessionId ? (
                 <>
-                  <h2 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">🎉 Congratulations!</h2>
-                  <p className="text-indigo-600 font-black text-xl mb-8">You won the match!</p>
+                  <h2 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">
+                    {room.players.length === 1 ? "Victory!" : "🎉 Congratulations!"}
+                  </h2>
+                  <p className="text-indigo-600 font-bold text-lg mb-8">
+                    {room.players.length === 1 ? "Your opponent left the match. You win!" : "You won the match!"}
+                  </p>
                 </>
               ) : (
                 <>
-                  <h2 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">BINGO!</h2>
+                  <h2 className="text-4xl font-black text-slate-800 mb-2 tracking-tight">Game Over</h2>
                   <p className="text-slate-500 font-bold text-lg mb-8">
-                    {room.winnerReason === "opponent_left" 
-                      ? "Your opponent left the match. You win!" 
-                      : `Player ${room.winner?.name} has won the match.`}
+                    {`Player ${room.winner?.name} has won the match.`}
                   </p>
                 </>
               )}
               
-              <div className="bg-slate-50 rounded-3xl p-6 mb-10 border border-slate-100 flex flex-col items-center gap-4">
+              <div className="bg-slate-50 rounded-3xl p-6 mb-8 border border-slate-100 flex flex-col items-center gap-4">
                 <div className="relative">
                   <img src={room.winner?.avatar} alt="" className="w-20 h-20 rounded-full border-4 border-white shadow-lg bg-white" referrerPolicy="no-referrer" />
-                  <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1 rounded-full border-2 border-white">
-                    <CheckCircle2 className="w-4 h-4" />
-                  </div>
+                  <motion.div 
+                    animate={{ scale: [1, 1.1, 1] }}
+                    transition={{ repeat: Infinity, duration: 3 }}
+                    className="absolute -inset-1 rounded-full border-2 border-indigo-500/30"
+                  />
                 </div>
                 <div>
                   <h3 className="text-2xl font-black text-slate-800 leading-tight">{room.winner?.name}</h3>
-                  <p className="text-emerald-500 font-bold text-sm uppercase tracking-widest mt-1">Ultimate Winner</p>
+                  <p className="text-emerald-500 font-bold text-xs uppercase tracking-widest mt-1">Match Winner</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <button 
                   onClick={onPlayAgain} 
-                  className="btn-primary py-4 text-sm sm:text-base"
+                  className="btn-primary py-4 text-sm uppercase tracking-widest hover:scale-105 active:scale-95 transition-all"
                 >
-                  PLAY AGAIN
+                  Play Again
                 </button>
                 <button 
                   onClick={onExit} 
-                  className="btn-secondary py-4 text-sm sm:text-base"
+                  className="btn-secondary py-4 text-sm uppercase tracking-widest hover:bg-slate-100 hover:scale-105 active:scale-95 transition-all"
                 >
-                  EXIT
+                  Exit
                 </button>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Notification Toast */}
+      <AnimatePresence>
+        {notification && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50, x: "-50%" }}
+            animate={{ opacity: 1, y: 0, x: "-50%" }}
+            exit={{ opacity: 0, y: 20, x: "-50%" }}
+            className="fixed bottom-8 left-1/2 z-[110] px-6 py-4 bg-slate-900 text-white rounded-2xl shadow-2xl flex items-center gap-3 font-bold border border-white/10"
+          >
+            <Info className="w-5 h-5 text-indigo-400" />
+            {notification}
           </motion.div>
         )}
       </AnimatePresence>
