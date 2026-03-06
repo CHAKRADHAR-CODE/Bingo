@@ -27,28 +27,34 @@ async function startServer() {
     console.log("User connected:", socket.id);
 
     socket.on("create-room", ({ playerName, avatar, sessionId }) => {
-      const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
-      const room = {
-        code: roomCode,
-        players: [{ 
-          id: socket.id, 
-          sessionId,
-          name: playerName, 
-          avatar, 
-          isReady: false, 
-          board: [], 
-          lines: 0, 
-          pickedNumbers: [] 
-        }],
-        gameState: "waiting",
-        currentTurnIndex: 0,
-        calledNumbers: [],
-        winner: null,
-      };
-      rooms.set(roomCode, room);
-      socket.join(roomCode);
-      socket.emit("room-created", room);
-      console.log(`Room created: ${roomCode} by ${playerName} (${sessionId})`);
+      try {
+        console.log(`Received create-room request from ${playerName} (${sessionId})`);
+        const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const room = {
+          code: roomCode,
+          players: [{ 
+            id: socket.id, 
+            sessionId,
+            name: playerName, 
+            avatar, 
+            isReady: false, 
+            board: [], 
+            lines: 0, 
+            pickedNumbers: [] 
+          }],
+          gameState: "waiting",
+          currentTurnIndex: 0,
+          calledNumbers: [],
+          winner: null,
+        };
+        rooms.set(roomCode, room);
+        socket.join(roomCode);
+        socket.emit("room-created", room);
+        console.log(`Room created successfully: ${roomCode} by ${playerName}`);
+      } catch (error) {
+        console.error("Error creating room:", error);
+        socket.emit("error", "Failed to create room. Please try again.");
+      }
     });
 
     socket.on("join-room", ({ roomCode, playerName, avatar, sessionId }) => {

@@ -77,6 +77,7 @@ export default function App() {
   const [room, setRoom] = useState<Room | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [socketConnected, setSocketConnected] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [myBoard, setMyBoard] = useState<number[]>([]);
   const [isReady, setIsReady] = useState(false);
@@ -120,10 +121,16 @@ export default function App() {
   // Initialize Socket
   useEffect(() => {
     const backendUrl = import.meta.env.VITE_BACKEND_URL || window.location.origin;
-    const newSocket = io(backendUrl);
+    console.log("Connecting to socket at:", backendUrl);
+    const newSocket = io(backendUrl, {
+      transports: ["websocket", "polling"],
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
     setSocket(newSocket);
 
     newSocket.on("connect", () => {
+      console.log("Socket connected:", newSocket.id);
       // Try to restore session if we have player info and room code
       const savedPlayer = localStorage.getItem("bingo_player");
       const savedRoomCode = localStorage.getItem("bingo_room_code");
@@ -138,7 +145,17 @@ export default function App() {
       }
     });
 
+    newSocket.on("disconnect", (reason) => {
+      console.log("Socket disconnected:", reason);
+    });
+
+    newSocket.on("connect_error", (err) => {
+      console.error("Socket connection error:", err);
+      setError("Connection error. Please check if the server is running.");
+    });
+
     newSocket.on("room-created", (room: Room) => {
+      console.log("Room created successfully:", room);
       setRoom(room);
       localStorage.setItem("bingo_room_code", room.code);
     });
@@ -221,6 +238,19 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!socket) return;
+    setSocketConnected(socket.connected);
+    const handleConnect = () => setSocketConnected(true);
+    const handleDisconnect = () => setSocketConnected(false);
+    socket.on("connect", handleConnect);
+    socket.on("disconnect", handleDisconnect);
+    return () => {
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
+    };
+  }, [socket]);
+
   const playSound = (key: string) => {
     if (soundEnabled && audioRef.current[key]) {
       audioRef.current[key].currentTime = 0;
@@ -243,12 +273,15 @@ export default function App() {
   };
 
   const createRoom = () => {
-    if (playerInfo && socket) {
+    console.log("Attempting to create room...", { playerInfo, socketConnected: socket?.connected });
+    if (playerInfo && socket && socket.connected) {
       socket.emit("create-room", { 
         playerName: playerInfo.name, 
         avatar: playerInfo.avatar,
         sessionId: sessionId.current
       });
+    } else if (!socket?.connected) {
+      setError("Not connected to server. Please wait...");
     }
   };
 
@@ -356,6 +389,7 @@ export default function App() {
         onJoin={joinRoom} 
         onLogout={handleLogout}
         error={error}
+        socketConnected={socketConnected}
       />
     );
   }
@@ -457,7 +491,7 @@ function EntryScreen({ onConfirm }: { onConfirm: (info: { name: string; avatar: 
   );
 }
 
-function LobbyScreen({ playerInfo, onCreate, onJoin, onLogout, error }: any) {
+function LobbyScreen({ playerInfo, onCreate, onJoin, onLogout, error, socketConnected }: any) {
   const [code, setCode] = useState("");
 
   return (
@@ -474,11 +508,13 @@ function LobbyScreen({ playerInfo, onCreate, onJoin, onLogout, error }: any) {
               <div className="flex items-center gap-4">
                 <div className="relative">
                   <img src={playerInfo.avatar} alt="" className="w-16 h-16 rounded-full border-2 border-white shadow-md bg-white" referrerPolicy="no-referrer" />
-                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full" />
+                  <div className={`absolute -bottom-1 -right-1 w-4 h-4 ${socketConnected ? "bg-emerald-500" : "bg-red-500"} border-2 border-white rounded-full`} />
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-slate-800">{playerInfo.name}</h2>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Online</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    {socketConnected ? "Online" : "Connecting..."}
+                  </p>
                 </div>
               </div>
               <button onClick={onLogout} className="p-3 text-slate-400 hover:text-red-500 transition-colors">
