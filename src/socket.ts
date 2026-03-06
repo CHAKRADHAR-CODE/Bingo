@@ -1,30 +1,36 @@
-/// <reference types="vite/client" />
 import { io, Socket } from "socket.io-client";
 
-const SERVER_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
+const SOCKET_URL = (import.meta as any).env.VITE_SERVER_URL || window.location.origin;
+export const socket: Socket = io(SOCKET_URL);
 
-export const socket: Socket = io(SERVER_URL);
-
-export const createRoom = (playerName: string, avatar: string, sessionId: string) => {
-  socket.emit("createRoom", { playerName, avatar, sessionId });
+export const createRoom = (name: string, avatar: string, sessionId: string) => {
+  socket.emit("create-room", { name, avatar, sessionId });
 };
 
-export const joinRoom = (roomCode: string, playerName: string, avatar: string, sessionId: string) => {
-  socket.emit("joinRoom", { roomCode, playerName, avatar, sessionId });
+export const joinRoom = (roomCode: string, name: string, avatar: string, sessionId: string) => {
+  socket.emit("join-room", { roomCode, name, avatar, sessionId });
 };
 
-export const readyPlayer = (roomCode: string, boardNumbers: number[]) => {
-  socket.emit("playerReady", { roomCode, boardNumbers });
+export const readyPlayer = (roomCode: string, board: number[][]) => {
+  socket.emit("set-ready", { roomCode, board });
 };
 
-export const selectNumber = (roomCode: string, number: number) => {
-  socket.emit("selectNumber", { roomCode, number });
+export const callNumber = (roomCode: string, number: number) => {
+  socket.emit("call-number", { roomCode, number });
 };
 
-export const bingoComplete = (roomCode: string) => {
-  socket.emit("bingoComplete", { roomCode });
+export const leaveRoom = (roomCode: string) => {
+  socket.emit("leave-room", { roomCode });
 };
 
-export const leaveRoom = (roomCode: string, sessionId: string) => {
-  socket.emit("leaveRoom", { roomCode, sessionId });
+export const startGame = (roomCode: string) => {
+  socket.emit("start-game-request", { roomCode });
+};
+
+export const checkBingo = (roomCode: string, lines: number) => {
+  socket.emit("check-bingo", { roomCode, lines });
+};
+
+export const playAgain = (roomCode: string) => {
+  socket.emit("play-again", { roomCode });
 };

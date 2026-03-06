@@ -1,11 +1,11 @@
 {
-  "name": "Neon Bingo Multiplayer",
-  "short_name": "NeonBingo",
-  "description": "A premium real-time multiplayer Bingo game with a modern dark gaming UI.",
+  "name": "Bingo Royale",
+  "short_name": "Bingo",
+  "description": "Premium Multiplayer Bingo Game",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0a0a0a",
-  "theme_color": "#00ff88",
+  "background_color": "#f8fafc",
+  "theme_color": "#8b5cf6",
   "icons": [
     {
       "src": "https://picsum.photos/seed/bingo/192/192",

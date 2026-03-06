@@ -1,5 +1,5 @@
 {
-  "name": "Neon Bingo Multiplayer",
-  "description": "A premium real-time multiplayer Bingo game with a modern dark gaming UI, room-based gameplay, and PWA support.",
+  "name": "Bingo",
+  "description": "A premium multiplayer bingo experience with real-time rooms and smooth gameplay.",
   "requestFramePermissions": []
 }
