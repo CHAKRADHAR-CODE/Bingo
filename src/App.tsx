@@ -77,11 +77,21 @@ export default function App() {
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
+    // URL Parameter support
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlRoomCode = urlParams.get("room");
+    if (urlRoomCode && urlRoomCode.length === 6) {
+      setRoomCode(urlRoomCode);
+    }
+
     socket.on("room-created", (roomData: Room) => {
       setRoom(roomData);
       setRoomCode(roomData.code);
       setView("room");
       localStorage.setItem("bingo_room_code", roomData.code);
+      // Update URL without reload
+      const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?room=' + roomData.code;
+      window.history.pushState({ path: newUrl }, '', newUrl);
     });
 
     socket.on("room-joined", (roomData: Room) => {
@@ -89,6 +99,9 @@ export default function App() {
       setRoomCode(roomData.code);
       setView("room");
       localStorage.setItem("bingo_room_code", roomData.code);
+      // Update URL without reload
+      const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?room=' + roomData.code;
+      window.history.pushState({ path: newUrl }, '', newUrl);
     });
 
     socket.on("player-joined", (roomData: Room) => {
@@ -178,8 +191,13 @@ export default function App() {
     const savedRoomCode = localStorage.getItem("bingo_room_code");
     const savedName = localStorage.getItem("bingo_name");
     const savedAvatar = localStorage.getItem("bingo_avatar");
-    if (savedRoomCode && savedName && savedAvatar) {
+    
+    // Only auto-reconnect if we are not trying to join a specific room from URL
+    if (!urlRoomCode && savedRoomCode && savedName && savedAvatar) {
       joinRoom(savedRoomCode, savedName, savedAvatar, sessionId);
+    } else if (urlRoomCode && savedName && savedAvatar) {
+      // If we have a URL code and user info, join automatically
+      joinRoom(urlRoomCode, savedName, savedAvatar, sessionId);
     }
 
     return () => {
@@ -277,14 +295,20 @@ export default function App() {
   };
 
   const handleCreateRoom = () => {
-    socket.emit("create-room", { name, avatar });
-    playSound("click");
+    if (name.trim()) {
+      createRoom(name, avatar, sessionId);
+      playSound("click");
+    }
   };
 
   const handleJoinRoom = () => {
-    if (roomCode.length === 6) {
-      socket.emit("join-room", { roomCode, name, avatar });
+    if (roomCode.length === 6 && name.trim()) {
+      joinRoom(roomCode, name, avatar, sessionId);
       playSound("click");
+    } else if (!name.trim()) {
+      setError("Please enter your name first");
+      setView("entry");
+      setTimeout(() => setError(null), 2000);
     } else {
       setError("Enter a 6-digit code");
       setTimeout(() => setError(null), 2000);
@@ -335,43 +359,23 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    // If in a room, notify the server
     if (room?.code) {
-      socket.emit("leave-room", { roomCode: room.code });
+      leaveRoom(room.code);
     }
-
-    // Clear all storage
     localStorage.clear();
-    sessionStorage.clear();
-    
-    // Reset all state variables
-    setName("");
-    setAvatar(AVATARS[0]);
-    setRoomCode("");
-    setRoom(null);
-    setBoard([]);
-    setSelectedCell(null);
-    setView("entry");
-    setError(null);
-    setCountdown(null);
-    
-    // Generate a new session ID for the next player
-    const newSessionId = Math.random().toString(36).substring(2, 15);
-    localStorage.setItem("bingo_session_id", newSessionId);
-    setSessionId(newSessionId);
-    
-    // Disconnect and reconnect socket to ensure a fresh session
-    socket.disconnect();
-    socket.connect();
-    
-    playSound("click");
+    // Clear URL
+    const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+    window.history.pushState({ path: newUrl }, '', newUrl);
+    window.location.reload();
   };
 
   const copyRoomCode = () => {
     if (room?.code) {
-      navigator.clipboard.writeText(room.code);
+      const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${room.code}`;
+      navigator.clipboard.writeText(inviteUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+      playSound("click");
     }
   };
 
@@ -388,7 +392,13 @@ export default function App() {
   };
 
   const handleLeave = () => {
-    socket.emit("leave-room", { roomCode: room?.code });
+    if (room?.code) {
+      leaveRoom(room.code);
+      localStorage.removeItem("bingo_room_code");
+      // Clear URL
+      const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+      window.history.pushState({ path: newUrl }, '', newUrl);
+    }
     setRoom(null);
     setRoomCode("");
     setView("lobby");
@@ -653,7 +663,7 @@ export default function App() {
           <div className="flex items-center gap-3">
             <div className="bg-white/80 backdrop-blur-sm px-6 py-3 rounded-2xl shadow-sm border border-white/60 flex items-center gap-4">
               <div className="flex flex-col">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Room Code</span>
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Invite Link</span>
                 <span className="font-display font-bold text-2xl text-brand-primary tracking-widest">{room?.code}</span>
               </div>
               <button 
