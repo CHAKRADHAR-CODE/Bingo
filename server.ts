@@ -111,10 +111,13 @@ async function startServer() {
 
     socket.on("call-number", ({ roomCode, number }) => {
       const room = rooms.get(roomCode);
-      if (!room) return;
+      if (!room || room.gameState !== "playing") return;
 
       const currentPlayer = room.players[room.currentTurnIndex];
-      if (currentPlayer.id !== socket.id) return;
+      if (currentPlayer.id !== socket.id) {
+        socket.emit("error", "It's not your turn!");
+        return;
+      }
 
       if (!room.calledNumbers.includes(number)) {
         room.calledNumbers.push(number);

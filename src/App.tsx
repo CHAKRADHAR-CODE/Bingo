@@ -71,6 +71,17 @@ export default function App() {
     audio.play().catch(() => {});
   }, [soundEnabled]);
 
+  const initializeBoard = useCallback(() => {
+    const nums = Array.from({ length: 25 }, (_, i) => i + 1);
+    const shuffled = [...nums].sort(() => Math.random() - 0.5);
+    const newBoard = [];
+    for (let i = 0; i < 5; i++) {
+      newBoard.push(shuffled.slice(i * 5, (i + 1) * 5));
+    }
+    setBoard(newBoard);
+    playSound("click");
+  }, [playSound]);
+
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -99,6 +110,16 @@ export default function App() {
       setRoomCode(roomData.code);
       setView("room");
       localStorage.setItem("bingo_room_code", roomData.code);
+      
+      // Sync board if player already has one
+      const me = roomData.players.find(p => p.sessionId === sessionId);
+      if (me?.board) {
+        setBoard(me.board);
+      } else if (roomData.gameState === "arranging" || roomData.gameState === "playing") {
+        // If we are in these states but have no board, initialize one
+        initializeBoard();
+      }
+
       // Update URL without reload
       const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?room=' + roomData.code;
       window.history.pushState({ path: newUrl }, '', newUrl);
@@ -111,6 +132,15 @@ export default function App() {
 
     socket.on("player-reconnected", (roomData: Room) => {
       setRoom(roomData);
+      const me = roomData.players.find(p => p.sessionId === sessionId);
+      if (me?.board) {
+        setBoard(me.board);
+      }
+      if (roomData.gameState === "playing") {
+        setView("game");
+      } else if (roomData.gameState === "arranging" || roomData.gameState === "waiting") {
+        setView("room");
+      }
     });
 
     socket.on("player-ready-update", (roomData: Room) => {
@@ -124,12 +154,16 @@ export default function App() {
 
     socket.on("game-arranging", (roomData: Room) => {
       setRoom(roomData);
-      setBoard([]);
+      initializeBoard(); // Auto-initialize board for everyone
       setView("room");
     });
 
     socket.on("game-started", (roomData: Room) => {
       setRoom(roomData);
+      const me = roomData.players.find(p => p.sessionId === sessionId);
+      if (me?.board) {
+        setBoard(me.board);
+      }
       setView("game");
       setCountdown(null);
     });
@@ -137,6 +171,7 @@ export default function App() {
     socket.on("number-called", ({ room: roomData, calledNumber }: { room: Room; calledNumber: number }) => {
       setRoom(roomData);
       playSound("click");
+      // Optional: show a toast or animation for the new number
     });
 
     socket.on("player-lines-update", (roomData: Room) => {
@@ -220,7 +255,7 @@ export default function App() {
       socket.off("player-disconnected");
       socket.off("error");
     };
-  }, [playSound]);
+  }, [playSound, initializeBoard, sessionId]);
 
   useEffect(() => {
     if (countdown !== null && countdown > 0) {
@@ -279,6 +314,13 @@ export default function App() {
         socket.emit("check-bingo", { roomCode: room.code, lines });
         if (lines > (currentPlayer.lines || 0)) {
           playSound("bingo");
+          // Confetti for completing a line
+          confetti({
+            particleCount: 50,
+            spread: 40,
+            origin: { y: 0.8 },
+            colors: ['#10B981', '#4F46E5']
+          });
         }
       }
     }
@@ -313,17 +355,6 @@ export default function App() {
       setError("Enter a 6-digit code");
       setTimeout(() => setError(null), 2000);
     }
-  };
-
-  const initializeBoard = () => {
-    const nums = Array.from({ length: 25 }, (_, i) => i + 1);
-    const shuffled = [...nums].sort(() => Math.random() - 0.5);
-    const newBoard = [];
-    for (let i = 0; i < 5; i++) {
-      newBoard.push(shuffled.slice(i * 5, (i + 1) * 5));
-    }
-    setBoard(newBoard);
-    playSound("click");
   };
 
   const handleCellClick = (rOrNum: number, c?: number) => {
@@ -816,8 +847,8 @@ export default function App() {
           </div>
         </motion.div>
 
-        {/* Turn Indicator */}
-        <div className="flex justify-center">
+        {/* Turn Indicator & Last Called */}
+        <div className="flex flex-col items-center gap-6">
           <motion.div 
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -839,6 +870,27 @@ export default function App() {
               </div>
             )}
           </motion.div>
+
+          {room?.calledNumbers.length > 0 && (
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              key={room.calledNumbers[room.calledNumbers.length - 1]}
+              className="flex flex-col items-center"
+            >
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">Last Called</span>
+              <div className="w-20 h-20 sm:w-24 sm:h-24 bg-white rounded-full border-4 border-brand-accent flex items-center justify-center shadow-2xl shadow-emerald-100 relative overflow-hidden">
+                <motion.div 
+                  initial={{ y: 40 }}
+                  animate={{ y: 0 }}
+                  className="text-3xl sm:text-4xl font-black text-slate-800 relative z-10"
+                >
+                  {room.calledNumbers[room.calledNumbers.length - 1]}
+                </motion.div>
+                <div className="absolute inset-0 bg-brand-accent/5 animate-pulse" />
+              </div>
+            </motion.div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
