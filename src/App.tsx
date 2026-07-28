@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import confetti from 'canvas-confetti';
-import { socket } from './socket';
+import { socket, connectSocket, disconnectSocket } from './socket';
 import { Player, Room, ThemeMode, MoveLog, GameScreen } from './types';
 import { generateRandomBoard, calculateCompletedLines, getCompletedLinePositions, chooseAiNumber } from './services/aiBot';
 import type { LinePosition } from './services/aiBot';
@@ -12,7 +12,7 @@ import { RoomHubModal } from './components/RoomHubModal';
 import { LobbyScreen } from './components/LobbyScreen';
 import { MoveLogBanner } from './components/MoveLogBanner';
 
-import { Trophy, ArrowLeft, Shuffle, Play, Bot, Swords, UserMinus } from 'lucide-react';
+import { Trophy, ArrowLeft, Shuffle, Play, Bot, Swords, UserMinus, WifiOff, Wifi } from 'lucide-react';
 
 export function App() {
   const [theme, setTheme] = useState<ThemeMode>(() =>
@@ -25,7 +25,9 @@ export function App() {
     if (!id) { id = Math.random().toString(36).substring(2, 9); localStorage.setItem('bingo_session_id', id); }
     return id;
   });
-  const [socketId, setSocketId] = useState(socket.id || '');
+  const [socketId, setSocketId] = useState('');
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [networkAlert, setNetworkAlert] = useState<string | null>(null);
 
   const [room, setRoom] = useState<Room | null>(null);
   const [myBoard, setMyBoard] = useState<number[][] | null>(() => generateRandomBoard(5));
@@ -46,11 +48,25 @@ export function App() {
   useEffect(() => { localStorage.setItem('bingo_theme', theme); }, [theme]);
   useEffect(() => { if (playerName) localStorage.setItem('bingo_player_name', playerName); }, [playerName]);
 
+  // Network status detection
   useEffect(() => {
-    const onConnect = () => setSocketId(socket.id || '');
+    const onOnline = () => { setIsOnline(true); setNetworkAlert(null); };
+    const onOffline = () => { setIsOnline(false); setNetworkAlert('You are offline. Multiplayer is unavailable.'); };
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => { window.removeEventListener('online', onOnline); window.removeEventListener('offline', onOffline); };
+  }, []);
+
+  // Socket connection tracking
+  useEffect(() => {
+    const onConnect = () => { setSocketId(socket.id || ''); setNetworkAlert(null); };
+    const onDisconnect = () => { setSocketId(''); setNetworkAlert('Disconnected from server. Multiplayer unavailable.'); };
+    const onConnectError = () => { setSocketId(''); setNetworkAlert('Cannot reach game server. Multiplayer unavailable.'); };
     socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    socket.on('connect_error', onConnectError);
     if (socket.connected) setSocketId(socket.id || '');
-    return () => { socket.off('connect', onConnect); };
+    return () => { socket.off('connect', onConnect); socket.off('disconnect', onDisconnect); socket.off('connect_error', onConnectError); };
   }, []);
 
   const handleCallNumber = useCallback((num: number, callerName?: string) => {
@@ -260,6 +276,7 @@ export function App() {
       setIsSingleplayer(false);
     } else if (room) {
       socket.emit('leave-room', { roomCode: room.code });
+      disconnectSocket();
       setRoom(null);
     }
     setScreen('main_menu');
@@ -269,6 +286,21 @@ export function App() {
     <div className={`min-h-screen font-sans transition-colors duration-200 ${bg} pt-12`}>
       <DesktopHeader theme={theme} onToggleTheme={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} playerName={playerName} />
 
+      {/* Network status banner */}
+      {screen !== 'intro' && screen !== 'name_prompt' && (
+        <div className={`fixed top-11 left-0 right-0 z-50 flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-semibold transition-all duration-500 ${
+          isOnline && socket.connected
+            ? 'bg-emerald-500/10 text-emerald-400 border-b border-emerald-500/20'
+            : 'bg-red-500/10 text-red-400 border-b border-red-500/20 animate-pulse'
+        }`}>
+          {isOnline && socket.connected ? (
+            <><Wifi className="w-3 h-3" /> Connected</>
+          ) : (
+            <><WifiOff className="w-3 h-3" /> {isOnline ? 'Server unreachable — multiplayer offline' : 'No internet — offline mode only'}</>
+          )}
+        </div>
+      )}
+
       {screen === 'intro' && <IntroScreen theme={theme} onEnter={handleIntroEnter} />}
       {screen === 'name_prompt' && <NameEntryModal theme={theme} onSaveName={handleSaveName} />}
 
@@ -276,8 +308,15 @@ export function App() {
         <MainChoiceMenu
           theme={theme}
           playerName={playerName}
+          isOnline={isOnline && socket.connected}
           onChangeName={() => setScreen('name_prompt')}
-          onSelectRoom={() => setScreen('room_hub')}
+          onSelectRoom={() => {
+            if (!isOnline || !socket.connected) {
+              setNetworkAlert('Cannot play online — no internet connection.');
+              return;
+            }
+            setScreen('room_hub');
+          }}
           onSelectAi={() => { setMyBoard(generateRandomBoard(5)); setScreen('offline_lobby'); }}
         />
       )}
@@ -285,8 +324,9 @@ export function App() {
       {screen === 'room_hub' && (
         <RoomHubModal
           theme={theme}
+          isOnline={isOnline}
           onBack={() => setScreen('main_menu')}
-          onCreateRoom={() => socket.emit('create-room', { name: playerName, avatar: "https://api.dicebear.com/7.x/notionists/svg?seed=Felix", sessionId })}
+          onCreateRoom={() => { connectSocket(); socket.emit('create-room', { name: playerName, avatar: "https://api.dicebear.com/7.x/notionists/svg?seed=Felix", sessionId }); }}
           onJoinRoom={(code) => socket.emit('join-room', { roomCode: code, name: playerName, avatar: "https://api.dicebear.com/7.x/notionists/svg?seed=Felix", sessionId })}
         />
       )}

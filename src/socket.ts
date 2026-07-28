@@ -1,13 +1,24 @@
 import { io, Socket } from "socket.io-client";
 
-const SOCKET_URL = (import.meta as any).env.VITE_SERVER_URL || window.location.origin;
-export const socket: Socket = io(SOCKET_URL);
+const ENV_URL = (import.meta as any).env?.VITE_SERVER_URL;
+const SOCKET_URL = ENV_URL || window.location.origin || '';
+export const socket: Socket = io(SOCKET_URL, { autoConnect: false });
+
+export function connectSocket() {
+  if (!socket.connected) socket.connect();
+}
+
+export function disconnectSocket() {
+  if (socket.connected) socket.disconnect();
+}
 
 export const createRoom = (name: string, avatar: string, sessionId: string) => {
+  connectSocket();
   socket.emit("create-room", { name, avatar, sessionId });
 };
 
 export const joinRoom = (roomCode: string, name: string, avatar: string, sessionId: string) => {
+  connectSocket();
   socket.emit("join-room", { roomCode, name, avatar, sessionId });
 };
 

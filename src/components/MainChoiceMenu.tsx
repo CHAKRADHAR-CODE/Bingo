@@ -5,13 +5,14 @@ import { ThemeMode } from '../types';
 interface MainChoiceMenuProps {
   theme: ThemeMode;
   playerName: string;
+  isOnline: boolean;
   onChangeName: () => void;
   onSelectRoom: () => void;
   onSelectAi: () => void;
 }
 
 export const MainChoiceMenu: React.FC<MainChoiceMenuProps> = ({
-  theme, playerName, onChangeName, onSelectRoom, onSelectAi,
+  theme, playerName, isOnline, onChangeName, onSelectRoom, onSelectAi,
 }) => {
   const dark = theme === 'dark';
 
@@ -53,14 +54,17 @@ export const MainChoiceMenu: React.FC<MainChoiceMenuProps> = ({
           {/* ROOM */}
           <button
             onClick={onSelectRoom}
+            disabled={!isOnline}
             className={`w-full group relative overflow-hidden rounded-2xl p-5 text-left flex items-center gap-4 transition-all duration-200 border ${
-              dark
-                ? 'glass hover:border-amber-500/25 hover:bg-[var(--surface-3)]'
-                : 'bg-white border-slate-200 hover:border-amber-300 hover:shadow-lg shadow-sm'
+              !isOnline
+                ? 'opacity-50 cursor-not-allowed'
+                : dark
+                  ? 'glass hover:border-amber-500/25 hover:bg-[var(--surface-3)]'
+                  : 'bg-white border-slate-200 hover:border-amber-300 hover:shadow-lg shadow-sm'
             }`}
           >
             {/* Hover sweep */}
-            <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500 bg-gradient-to-r from-transparent via-amber-500/5 to-transparent" />
+            <span className={`absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500 bg-gradient-to-r from-transparent via-amber-500/5 to-transparent ${!isOnline ? 'hidden' : ''}`} />
 
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
               dark ? 'bg-amber-500/10 border border-amber-500/15' : 'bg-amber-50 border border-amber-200'

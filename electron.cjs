@@ -20,11 +20,15 @@ function createWindow() {
     },
   });
 
-  const startUrl = process.env.ELECTRON_START_URL || `http://localhost:3000`;
+  const isDev = process.env.NODE_ENV === 'development' || process.env.ELECTRON_IS_DEV === '1';
   
-  mainWindow.loadURL(startUrl).catch(() => {
+  if (isDev && process.env.ELECTRON_START_URL) {
+    mainWindow.loadURL(process.env.ELECTRON_START_URL).catch(() => {
+      mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
+    });
+  } else {
     mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
-  });
+  }
 
   mainWindow.on('closed', function () {
     mainWindow = null;
