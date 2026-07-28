@@ -8,6 +8,14 @@ export interface Player {
   lines: number;
   won: boolean;
   isHost: boolean;
+  isAi?: boolean;
+}
+
+export interface MoveLog {
+  id: string;
+  playerName: string;
+  calledNumber: number;
+  timestamp: string;
 }
 
 export interface Room {
@@ -17,15 +25,20 @@ export interface Room {
   gameState: "waiting" | "starting" | "arranging" | "playing" | "finished";
   calledNumbers: number[];
   currentTurnIndex: number;
+  moveLogs?: MoveLog[];
 }
 
+export type GameScreen = "intro" | "name_prompt" | "main_menu" | "room_hub" | "lobby" | "arranging" | "gameplay" | "offline_lobby";
+
+export type ThemeMode = "dark" | "light";
+
 export const AVATARS = [
-  "https://api.dicebear.com/7.x/notionists/svg?seed=Felix", // Boy 1
-  "https://api.dicebear.com/7.x/notionists/svg?seed=Milo",  // Boy 2
-  "https://api.dicebear.com/7.x/notionists/svg?seed=Oscar", // Boy 3
-  "https://api.dicebear.com/7.x/notionists/svg?seed=Toby",  // Boy 4
-  "https://api.dicebear.com/7.x/notionists/svg?seed=Heidi", // Girl 1
-  "https://api.dicebear.com/7.x/notionists/svg?seed=Bella", // Girl 2
-  "https://api.dicebear.com/7.x/notionists/svg?seed=Sophie",// Girl 3
-  "https://api.dicebear.com/7.x/notionists/svg?seed=Chloe", // Girl 4
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Felix",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Milo",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Oscar",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Toby",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Heidi",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Bella",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Sophie",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Chloe",
 ];

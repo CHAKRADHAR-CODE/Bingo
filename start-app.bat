@@ -1,0 +1,3 @@
+@echo off
+echo Launching BINGO PRIME Desktop Application...
+node ./node_modules/electron/cli.js .

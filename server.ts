@@ -147,7 +147,7 @@ async function startServer() {
       const room = rooms.get(roomCode);
       if (!room || room.hostId !== socket.id) return;
 
-      room.gameState = "arranging";
+      room.gameState = "waiting";
       room.calledNumbers = [];
       room.currentTurnIndex = 0;
       room.players.forEach((p) => {
@@ -157,7 +157,7 @@ async function startServer() {
         p.won = false;
       });
 
-      io.to(roomCode).emit("game-arranging", room);
+      io.to(roomCode).emit("play-again-accepted", room);
     });
 
     socket.on("leave-room", ({ roomCode }) => {

@@ -1,170 +1,105 @@
-# 🎯 Multiplayer Bingo Web App
+# BINGO PRIME - Universal Cross-Platform Game Application
 
-🌐 **Live Website:**  https://bingo-era.vercel.app/
-
-A real-time **Multiplayer Bingo game** built with modern web technologies.  
-Players can create or join game rooms, arrange their Bingo boards, and compete live with others.  
-The game synchronizes all moves instantly using **Socket.io**, providing a smooth multiplayer experience on both **mobile and desktop**.
+A production-grade, high-performance **Universal Cross-Platform Bingo Application** supporting **Web**, **Windows Desktop (Electron)**, **Android Mobile (Capacitor)**, and **iOS Mobile (Capacitor)** using a single unified React 19 + TypeScript codebase.
 
 ---
 
-# 🚀 Features
+## 🚀 Key Platform Features
 
-✔ Real-time multiplayer gameplay  
-✔ Create or join rooms using a **6-digit code**  
-✔ Player profile with **name and avatar**  
-✔ Interactive **5×5 Bingo board** (numbers 1–25)  
-✔ Players can arrange numbers before the game starts  
-✔ Game begins only when **all players are ready**  
-✔ Real-time number selection using **Socket.io**  
-✔ Visual feedback:
-- 🔴 Called numbers turn **Red**
-- 🟢 Completed lines turn **Green**
+### 🖥️ Windows Desktop Application (Electron)
+- **Native Custom Title Bar**: Window minimize, maximize, fullscreen, close controls, and drag regions.
+- **Standalone Windows Executable**: Configured `electron-builder` to package `.exe` installers and portable executables into `release/`.
+- **System Tray & Keyboard Shortcuts**: Native desktop window controls and background persistence.
 
-✔ B I N G O progress tracker  
-✔ Winner announcement popup  
-✔ **Play Again** or **Exit** options  
-✔ Works on **Mobile + Desktop**  
-✔ **PWA support** (installable web app)
+### 📱 Android & iOS Applications (Capacitor)
+- **Native Haptic Feedback Engine**: Tactile vibration responses on tile marking, powerup triggers, and victory fanfares (`@capacitor/haptics`).
+- **Glassmorphic Mobile Bottom Navigation**: Touch-optimized bottom navigation bar for seamless mobile UX.
+- **Offline & Network Status Monitor**: Real-time network detection displaying an offline alert when disconnected (`@capacitor/network`).
+- **Native Notifications**: Local/push notifications for line completions and room invites (`@capacitor/local-notifications`).
+- **Native Status Bar & Splash Screen**: Dark theme status bar and animated splash screen configuration.
 
----
-
-# 🧠 Game Flow
-
-1. Player enters **name and avatar**  
-2. Player can **Create Room** or **Join Room**  
-3. A **6-digit room code** is generated  
-4. Players arrange numbers **1–25 on a 5×5 grid**  
-5. Game starts once **all players are ready**  
-6. Players select numbers during the game  
-7. When a row/column/diagonal completes → **BINGO letter fills**  
-8. First player to complete **B I N G O** wins 🎉
+### 🎨 Visuals & Audio Engine
+- **Canvas Particle Engine**: Dynamic Starfield warp, neon particle backdrop, and victory fireworks.
+- **Web Audio API Synthesizer**: Pure Web Audio SFX generation for clicks, stamps, line completions, and victory fanfares without external audio asset downloads.
+- **Speech Synthesis Announcer**: Audibly speaks draw numbers aloud (*"B-12"*, *"I-24"*).
+- **5 Custom Visual Themes**: Cyberpunk 2077, Royal Platinum, Retro Synthwave, Emerald Matrix, Deep Void.
 
 ---
 
-# 🛠 Tech Stack
-
-### Frontend
-- React + Vite
-- TypeScript
-- Socket.io Client
-- CSS
-
-### Backend
-- Node.js
-- Express.js
-- Socket.io
-
-### Deployment
-- Frontend → **Vercel**
-- Backend → **Render**
-
-### Other
-- Progressive Web App (PWA)
-- Real-time WebSocket communication
-
----
-
-# 📂 Project Structure
+## 📁 Directory Structure
 
 ```
-project-root
-│
-├── backend
-│   └── server.js
-│
-├── public
-│   └── manifest.json
-│
-├── src
-│   ├── App.tsx
-│   ├── main.tsx
-│   ├── socket.ts
-│   └── styles
-│
-├── index.html
-├── vite.config.ts
-├── tsconfig.json
-└── package.json
+Bingo/
+├── android/                   # Native Android Studio project (Capacitor)
+├── ios/                       # Native Xcode project (Capacitor)
+├── dist/                      # Vite compiled production web assets
+├── release/                   # Windows Desktop (.exe / .msi) installer builds
+├── electron.cjs               # Electron main desktop process script
+├── capacitor.config.ts        # Capacitor mobile app configuration
+├── server.ts                  # Express + Socket.IO real-time backend server
+├── src/
+│   ├── components/
+│   │   ├── DesktopHeader.tsx  # Native window header titlebar
+│   │   ├── MobileBottomNav.tsx# Mobile glassmorphic navigation bar
+│   │   ├── OfflineBanner.tsx  # Offline network status indicator
+│   │   ├── IntroScreen.tsx    # Cinematic intro splash screen
+│   │   ├── GameLauncher.tsx   # Main Menu Hub (Solo AI, Arcade, Multiplayer, Achievements)
+│   │   ├── ArcadePowerups.tsx # Tactical power-up actions
+│   │   ├── AchievementsModal.tsx
+│   │   ├── SettingsModal.tsx  # Theme & audio customizer
+│   │   └── ParticleCanvas.tsx # Canvas 2D particle engine
+│   ├── services/
+│   │   ├── nativeService.ts   # Unified native bridge (Haptics, Notifications, Network)
+│   │   ├── soundEngine.ts     # Web Audio API Synthesizer & Speech Announcer
+│   │   ├── particleEngine.ts  # Canvas particle renderer
+│   │   └── aiBot.ts           # Offline AI bot opponent engine
+│   ├── App.tsx                # Main application orchestrator
+│   └── types.ts               # Shared TypeScript interface definitions
+├── package.json
+└── start-app.bat              # Windows double-clickable launcher
 ```
 
 ---
 
-# ⚡ Installation & Setup
+## 🛠️ Build & Development Commands
 
-### 1️⃣ Clone the Repository
-
-```bash
-git clone https://github.com/yourusername/multiplayer-bingo.git
-cd multiplayer-bingo
-```
-
----
-
-### 2️⃣ Install Dependencies
-
-```bash
-npm install
-```
-
----
-
-### 3️⃣ Run Backend
-
-```bash
-cd backend
-node server.js
-```
-
----
-
-### 4️⃣ Run Frontend
-
+### 1. Run Development Web & Socket Server
 ```bash
 npm run dev
 ```
 
----
+### 2. Launch Windows Desktop Application (Electron)
+```bash
+npm run app
+```
+*(Or double-click `start-app.bat`)*
 
-# 🎮 How to Play
+### 3. Package Windows (.exe) Installer
+```bash
+npm run build:desktop
+```
+> The generated `.exe` installer will be saved to `release/`.
 
-1. Open the website  
-2. Enter your **name and avatar**  
-3. Create a room or join with a **6-digit code**  
-4. Arrange your Bingo numbers  
-5. Wait until all players are ready  
-6. Start marking numbers  
-7. Complete **B I N G O** to win the match!
+### 4. Build Mobile Production Assets (Capacitor)
+```bash
+npm run build:mobile
+```
 
----
+### 5. Open Android Studio to Build (.apk / .aab)
+```bash
+npx cap add android
+npm run cap:android
+```
+> Build APK/AAB inside Android Studio via **Build > Build Bundle(s) / APK(s) > Build APK**.
 
-# 📱 PWA Support
-
-This application supports **Progressive Web App features**.
-
-You can:
-- Install it on mobile
-- Use it like a native app
-- Play directly from your home screen
-
----
-
-# 🏆 Future Improvements
-
-- Chat inside game rooms  
-- Spectator mode  
-- Leaderboard system  
-- Sound effects and animations  
-- Tournament mode  
+### 6. Open Xcode to Build iOS (.ipa)
+```bash
+npx cap add ios
+npm run cap:ios
+```
+> Archive & export `.ipa` inside Xcode via **Product > Archive**.
 
 ---
 
-# 👨‍💻 Author
-
-**Chakradhar Chowdary Gunnam**
-
-AI & ML Student | Full-Stack Developer | Competitive Programmer
-
----
-
-⭐ If you like this project, consider **starring the repository**!
+## 📄 License
+MIT License - Bingo Prime Universal Edition.
