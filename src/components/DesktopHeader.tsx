@@ -30,7 +30,7 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({ theme, onToggleThe
     >
       {/* Brand */}
       <div className="flex items-center gap-2.5">
-        <img src="/logo.png" alt="Bingo" className="w-6 h-6 object-contain rounded" />
+        <img src="./logo.png" alt="Bingo" className="w-6 h-6 object-contain rounded" />
         <span
           className={`text-sm font-black tracking-[0.2em] ${dark ? 'text-amber-400' : 'text-slate-900'}`}
           style={{ fontFamily: 'Orbitron, sans-serif' }}

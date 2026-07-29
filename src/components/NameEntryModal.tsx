@@ -27,7 +27,7 @@ export const NameEntryModal: React.FC<NameEntryModalProps> = ({ theme, onSaveNam
         {/* Logo */}
         <div className="flex flex-col items-center mb-8 gap-3">
           <div className={`w-14 h-14 rounded-2xl flex items-center justify-center p-3 ${dark ? 'glass-warm' : 'bg-amber-50 border border-amber-200'}`}>
-            <img src="/logo.png" alt="Bingo" className="w-full h-full object-contain" />
+            <img src="./logo.png" alt="Bingo" className="w-full h-full object-contain" />
           </div>
           <div className="text-center">
             <h2 className={`text-xl font-black mb-0.5 ${dark ? 'text-amber-400' : 'text-slate-900'}`} style={{ fontFamily: 'Orbitron, sans-serif' }}>

@@ -65,7 +65,7 @@ export const IntroScreen: React.FC<IntroScreenProps> = ({ theme, onEnter }) => {
                 <div className="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-amber-500/60 rounded-br-md" />
               </>
             )}
-            <img src="/logo.png" alt="Bingo" className="w-full h-full object-contain" />
+            <img src="./logo.png" alt="Bingo" className="w-full h-full object-contain" />
           </div>
         </div>
 
