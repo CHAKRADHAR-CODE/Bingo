@@ -12,7 +12,7 @@ import { RoomHubModal } from './components/RoomHubModal';
 import { LobbyScreen } from './components/LobbyScreen';
 import { MoveLogBanner } from './components/MoveLogBanner';
 
-import { Trophy, ArrowLeft, Shuffle, Play, Bot, Swords, UserMinus, WifiOff, Wifi } from 'lucide-react';
+import { Trophy, ArrowLeft, Shuffle, Play, Bot, Swords, UserMinus } from 'lucide-react';
 
 export function App() {
   const [theme, setTheme] = useState<ThemeMode>(() =>
@@ -27,8 +27,6 @@ export function App() {
   });
   const [socketId, setSocketId] = useState('');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [networkAlert, setNetworkAlert] = useState<string | null>(null);
-
   const [room, setRoom] = useState<Room | null>(null);
   const [myBoard, setMyBoard] = useState<number[][] | null>(() => generateRandomBoard(5));
   const [linesCount, setLinesCount] = useState(0);
@@ -50,8 +48,8 @@ export function App() {
 
   // Network status detection
   useEffect(() => {
-    const onOnline = () => { setIsOnline(true); setNetworkAlert(null); };
-    const onOffline = () => { setIsOnline(false); setNetworkAlert('You are offline. Multiplayer is unavailable.'); };
+    const onOnline = () => { setIsOnline(true); };
+    const onOffline = () => { setIsOnline(false); };
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
     return () => { window.removeEventListener('online', onOnline); window.removeEventListener('offline', onOffline); };
@@ -59,9 +57,9 @@ export function App() {
 
   // Socket connection tracking
   useEffect(() => {
-    const onConnect = () => { setSocketId(socket.id || ''); setNetworkAlert(null); };
-    const onDisconnect = () => { setSocketId(''); setNetworkAlert('Disconnected from server. Multiplayer unavailable.'); };
-    const onConnectError = () => { setSocketId(''); setNetworkAlert('Cannot reach game server. Multiplayer unavailable.'); };
+    const onConnect = () => { setSocketId(socket.id || ''); };
+    const onDisconnect = () => { setSocketId(''); };
+    const onConnectError = () => { setSocketId(''); };
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('connect_error', onConnectError);
@@ -286,20 +284,7 @@ export function App() {
     <div className={`min-h-screen font-sans transition-colors duration-200 ${bg} pt-12`}>
       <DesktopHeader theme={theme} onToggleTheme={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} playerName={playerName} />
 
-      {/* Network status banner */}
-      {screen !== 'intro' && screen !== 'name_prompt' && (
-        <div className={`fixed top-11 left-0 right-0 z-50 flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-semibold transition-all duration-500 ${
-          isOnline && socket.connected
-            ? 'bg-emerald-500/10 text-emerald-400 border-b border-emerald-500/20'
-            : 'bg-red-500/10 text-red-400 border-b border-red-500/20 animate-pulse'
-        }`}>
-          {isOnline && socket.connected ? (
-            <><Wifi className="w-3 h-3" /> Connected</>
-          ) : (
-            <><WifiOff className="w-3 h-3" /> {isOnline ? 'Server unreachable — multiplayer offline' : 'No internet — offline mode only'}</>
-          )}
-        </div>
-      )}
+
 
       {screen === 'intro' && <IntroScreen theme={theme} onEnter={handleIntroEnter} />}
       {screen === 'name_prompt' && <NameEntryModal theme={theme} onSaveName={handleSaveName} />}
@@ -312,7 +297,6 @@ export function App() {
           onChangeName={() => setScreen('name_prompt')}
           onSelectRoom={() => {
             if (!isOnline) {
-              setNetworkAlert('Cannot play online — no internet connection.');
               return;
             }
             connectSocket();
