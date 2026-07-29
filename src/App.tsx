@@ -308,13 +308,14 @@ export function App() {
         <MainChoiceMenu
           theme={theme}
           playerName={playerName}
-          isOnline={isOnline && socket.connected}
+          isOnline={isOnline}
           onChangeName={() => setScreen('name_prompt')}
           onSelectRoom={() => {
-            if (!isOnline || !socket.connected) {
+            if (!isOnline) {
               setNetworkAlert('Cannot play online — no internet connection.');
               return;
             }
+            connectSocket();
             setScreen('room_hub');
           }}
           onSelectAi={() => { setMyBoard(generateRandomBoard(5)); setScreen('offline_lobby'); }}
@@ -327,7 +328,7 @@ export function App() {
           isOnline={isOnline}
           onBack={() => setScreen('main_menu')}
           onCreateRoom={() => { connectSocket(); socket.emit('create-room', { name: playerName, avatar: "https://api.dicebear.com/7.x/notionists/svg?seed=Felix", sessionId }); }}
-          onJoinRoom={(code) => socket.emit('join-room', { roomCode: code, name: playerName, avatar: "https://api.dicebear.com/7.x/notionists/svg?seed=Felix", sessionId })}
+          onJoinRoom={(code) => { connectSocket(); socket.emit('join-room', { roomCode: code, name: playerName, avatar: "https://api.dicebear.com/7.x/notionists/svg?seed=Felix", sessionId }); }}
         />
       )}
 
