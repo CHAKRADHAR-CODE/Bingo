@@ -4,7 +4,7 @@ const RAILWAY_URL = 'https://bingo-prime.up.railway.app';
 const ENV_URL = (import.meta as any).env?.VITE_SERVER_URL;
 const ORIGIN = window.location.origin && window.location.origin !== 'null' ? window.location.origin : '';
 const SOCKET_URL = ENV_URL || ORIGIN || RAILWAY_URL;
-export const socket: Socket = io(SOCKET_URL, { autoConnect: false });
+export const socket: Socket = io(SOCKET_URL, { autoConnect: false, transports: ['websocket'] });
 
 export function connectSocket() {
   if (!socket.connected) socket.connect();
